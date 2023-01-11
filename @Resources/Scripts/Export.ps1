@@ -16,10 +16,10 @@ function Update {
 function Export {
     # Export shape option
     $RmApi.OptionStr("Shape2") | Out-File -FilePath "$($tempDir)\$currentFileName"
-    $RmApi.Log("Exported shape $index!")
+    # $RmApi.Log("Exported shape $index!")
 
     Hashtable | Export-Clixml -Path "$($storageDir)\$index.ps1xml"
-    $RmApi.Log("Exported bar $index as hashtable!")
+    # $RmApi.Log("Exported bar $index as hashtable!")
 
     $RmApi.Bang("!DeactivateConfig")
 }

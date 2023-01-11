@@ -3,7 +3,6 @@
 - [x] Make a git repository
 - [x] Save bars as hashtables instead of moving the .ini
   - [x] Just need to make the templates read a hashtable!
-- [ ] Separate mouse tracking skin, each skin sets itself as the active skin when hovered over
 - [ ] Better controller skin
 - [ ] Try HotInput for the expression editor
 - [ ] More built-in expression stuff like an index that goes 0-1-0 during 0 to #Bands#

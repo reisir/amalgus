@@ -8,6 +8,7 @@ param (
     $FromHashtable
 )
 
+# Default values
 $w = 10
 $h = 100
 $DefaultValues = @{
@@ -18,8 +19,10 @@ $DefaultValues = @{
     Rotation = 180;
 }
 
+# Use provided hashtable or defaults
 $H = if ($FromHashtable -is [System.Collections.Hashtable]) { $FromHashtable } else { $DefaultValues }
 
+# Helper functions that generate similar bangs that are reused
 function New-Dimension {
     Param(
         [Parameter(Mandatory, Position = 0)]
@@ -37,25 +40,57 @@ function New-Dimension {
 
 }
 
+function If-Dimension {
+    param(
+        [Parameter(Mandatory, Position = 0)]
+        [string[]]
+        $Dimension
+    )
+    return "[!SetVariable Mouse$Dimension `"([#MouseIsEditing] = 0 ? `$mouse$Dimension`$ : [#Mouse$Dimension])`"]"
+}
+
+function Mouse-Actions {
+    param(
+        [Parameter(Mandatory, Position = 0)]
+        [string[]]
+        $Action
+    )
+
+    switch ($Action) {
+        "Resize" { return "[!SetVariable GrowWidth `"(([#MouseX] - `$mouseX`$) * -1)`"][!SetVariable GrowHeight `"(([#MouseY] - `$mouseY`$) * -1)`"]" }
+        "Move" { return "[!SetVariable MoveX `"([#MouseX] - `$mouseX`$)`"][!SetVariable MoveY `"([#MouseY] - `$mouseY`$)`"]" }
+        Default { return "" }
+    }
+
+}
+
+# Reused bangs
+$ur = "[!UpdateMeter Bar][!Redraw]"
+
+$enableEdit = "[!SetVariable MouseIsEditing 1]"
+$disableEdit = "[!SetVariable MouseIsEditing 0]"
+$writeRotation = "[!WriteKeyValue Variables Rotation `"([#Rotation])`"]"
+$writeDimensions = "[!WriteKeyValue Variables Width `"[#Width]`"][!WriteKeyValue Variables Height `"[#Height]`"]"
+$setWriteCordinates = "[!SetVariable X `"([#X] - [#MoveX])`"][!SetVariable Y `"([#Y] - [#MoveY])`"][!WriteKeyValue Variables X `"[#X]`"][!WriteKeyValue Variables Y `"[#Y]`"]"
+
+$resetSize = "[!SetVariable GrowHeight 0][!SetVariable GrowWidth 0]"
+$resetMove = "[!SetVariable MoveX 0][!SetVariable MoveY 0]"
+
 return @"
 [Rainmeter]
 Update=16
-MouseScrollDownAction=[!SetVariable Rotation "([#Rotation] - 5)"][!WriteKeyValue Variables Rotation "([#Rotation])"]#UR#
-MouseScrollUpAction=[!SetVariable Rotation "([#Rotation] + 5)"][!WriteKeyValue Variables Rotation "([#Rotation])"]#UR#
-MouseOverAction=[!SetVariable MouseOver 1]#UR#
-MouseLeaveAction=[!SetVariable MouseOver 0]#UR#
-RightMouseDownAction=[!SetVariable MouseIsEditing 1]#UR#
-RightMouseUpAction=[!SetVariable MouseIsEditing 0][!SetVariable Width "(([#Width] - [#GrowWidth]) < #MinWidth# ? #MinWidth# : ([#Width] - [#GrowWidth]))"][!SetVariable Height "(([#Height] - [#GrowHeight]) < #MinHeight# ? #MinHeight# : ([#Height] - [#GrowHeight]))"][!WriteKeyValue Variables Width "[#Width]"][!WriteKeyValue Variables Height "[#Height]"][!SetVariable X "([#X] - [#MoveX])"][!SetVariable Y "([#Y] - [#MoveY])"][!WriteKeyValue Variables X "[#X]"][!WriteKeyValue Variables Y "[#Y]"]#ResetMove# #ResetSize# #UR#
-LeftMouseDownAction=[!SetVariable MouseIsEditing 1]#UR#
-LeftMouseUpAction=[!SetVariable MouseIsEditing 0][!SetVariable X "([#X] - [#MoveX])"][!SetVariable Y "([#Y] - [#MoveY])"][!WriteKeyValue Variables X "[#X]"][!WriteKeyValue Variables Y "[#Y]"]#ResetMove# #UR#
-MiddleMouseUpAction=#Export#
+MouseScrollDownAction=[!SetVariable Rotation "([#Rotation] - 5)"]$writeRotation$ur
+MouseScrollUpAction=[!SetVariable Rotation "([#Rotation] + 5)"]$writeRotation$ur
+MouseOverAction=[!SetVariable MouseOver 1]$ur
+MouseLeaveAction=[!SetVariable MouseOver 0]$ur
+RightMouseDownAction=$enableEdit$ur
+RightMouseUpAction=$disableEdit[!SetVariable Width "$(New-Dimension "Width")"][!SetVariable Height "$(New-Dimension "Height")"]$writeDimensions$setWriteCordinates$resetMove$resetSize$ur
+LeftMouseDownAction=$enableEdit$ur
+LeftMouseUpAction=$disableEdit$setWriteCordinates$resetMove $ur
+MiddleMouseUpAction=[!CommandMeasure Export "Export"]
 
 [Variables]
 @IncludeVariables=#@#Variables.inc
-UR=[!UpdateMeter Bar][!Redraw]
-Export=[!CommandMeasure Export "Export"]
-ResetMove=[!SetVariable MoveX 0][!SetVariable MoveY 0]
-ResetSize=[!SetVariable GrowHeight 0][!SetVariable GrowWidth 0]
 Index=$Index
 Height=$($H.Height)
 Width=$($H.Width)
@@ -75,9 +110,9 @@ MouseOver=0
 Measure=Plugin
 Plugin=Mouse
 RelativeToSkin=0
-MouseMoveAction=[!SetVariable MouseX "([#MouseIsEditing] = 0 ? `$mouseX$ : [#MouseX])"][!SetVariable MouseY "([#MouseIsEditing] = 0 ? `$mouseY$ : [#MouseY])"]
-RightMouseDragAction=[!SetVariable GrowWidth "(([#MouseX] - `$mouseX$) * -1)"][!SetVariable GrowHeight "(([#MouseY] - `$mouseY$) * -1)"][!Update]#UR#
-LeftMouseDragAction=[!SetVariable MoveX "([#MouseX] - `$mouseX$)"][!SetVariable MoveY "([#MouseY] - `$mouseY$)"][!Update]#UR#
+MouseMoveAction=$(If-Dimension "X")$(If-Dimension "Y")
+RightMouseDragAction=$(Mouse-Actions "Resize")[!Update]$ur
+LeftMouseDragAction=$(Mouse-Actions "Move")[!Update]$ur
 
 [Bar]
 Meter=Shape
@@ -89,20 +124,11 @@ Origin=StrokeWidth 0 | Fill Color 255,0,0,(#MouseOver# = 1 ? 255 : 0)
 DynamicVariables=1
 UpdateDivider=-1
 
-[NewWidth]
-Measure=Calc
-Formula=$(New-Dimension "Width")
-DynamicVariables=1
-[NewHeight]
-Measure=Calc
-Formula=$(New-Dimension "Height")
-DynamicVariables=1
-
 [Debug]
 Meter=String
 MeasureName=NewWidth
 MeasureName2=NewHeight
-Text=Bar $Index#CRLF#Rotation = #Rotation##CRLF#Width = %1#CRLF#Height = %2
+Text=Bar $Index#CRLF#Rotation = #Rotation##CRLF#Width = (#Width# - #GrowWidth#)#CRLF#Height = (#Height# - #GrowHeight#)
 Hidden=(1 - #MouseIsEditing#)
 FontColor=255,255,255
 X=48
